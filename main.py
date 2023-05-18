@@ -195,15 +195,15 @@ class Application(tk.Tk):
         self.create_widgets()
         
         #* STDIO Redirection
-        sys.stdout = TextRedirector(self.output)
-        sys.stderr = TextRedirector(self.output)
+        #!sys.stdout = TextRedirector(self.output)
+        #!sys.stderr = TextRedirector(self.output)
         
         #* PII-Linker 
         self.mgr = PIILinker()
         
         #* ProgBar
-        self.operationsRemaining = 0
         self.progBars: list[ProgBar] = []
+        self.stop = threading.Event()
         
 
     def create_widgets(self):
@@ -313,23 +313,19 @@ class Application(tk.Tk):
             
 
     #> -------------------- Progress Bar -------------------- <#            
-    def updateProg(self, PGID: int):
-        while True:
+    def updateProg(self):
+        while not self.stop:
             self.active_progress_area.delete('1.0', tk.END)
-        
-            if self.progBars[PGID].progress >= self.progBars[PGID].total or PGID != ProgBar.instance:
-                self.progBars[PGID].progress = self.progBars[PGID].total
-                self.output.insert(tk.END, str(self.progBars[PGID]) + '\n')
-                return
+            self.active_progress_area.insert(tk.END, str(self.progBars[-1]))
             
-            self.active_progress_area.insert(tk.END, str(self.progBars[PGID]))
-        
-
+        self.progBars[-1].progress = self.progBars[-1].total
+        print(self.progBars[-1])
 
 
     #> -------------------- PIILinker -------------------- <#
     def setup(self) -> None:
         """ Grabs starter-code data """
+        self.stop.clear()
         self.mgr.CHECK = [file for file in listdir(self.mgr.STARTER) if file.endswith(".cpp") or file.endswith(".h")]
         
         if not len(self.mgr.CHECK): 
@@ -338,34 +334,31 @@ class Application(tk.Tk):
         
         #* Init main progress bar
         self.numSubmissions = len(listdir(self.mgr.ARCHIVE))
-        self.operationsRemaining = self.numSubmissions * 2 + 2
         self.mainProgressBar["value"] = 0
-        self.mainProgressBar["maximum"] = self.operationsRemaining
+        self.mainProgressBar["maximum"] = self.operationsRemaining * 2 + 2
         
         self.progBars += [ProgBar(1, "Initialzing")]
-        self.threadS = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[0].ID))
+        self.threadS = threading.Thread(daemon = True, target = self.updateProg)
         self.threadS.start()
-        
+
         chdir(self.mgr.STARTER) #> Change dir to starter-code folder
         NL2 = "\n\n"
         #* Concatenate combined starter code file for FileWrangler::generate()
         for i, sFile in enumerate(self.mgr.CHECK, 0):
             with open(sFile, 'r') as rFile:
-                self.mgr.STARTER += f"{(NL2 if i else '')}/* ----- {sFile} | STARTER CODE ----- */\n\n{rFile.read()}"
-                            
+                self.mgr.STARTER += f"{(NL2 if i else '')}/* ----- {sFile} | STARTER CODE ----- */\n\n{rFile.read()}"    
         chdir(self.mgr.ROOTDIR) #> Restoring root directory
         
         self.progBars[0].increment()
+        self.stop.set()
         self.mainProgressBar["value"] += 1
-        self.operationsRemaining -= 1
-        
          
     
     def build(self) -> None:
         """ Builds student database using exported submission CSV """
-        
+        self.stop.clear()
         self.progBars += [ProgBar(1, "Building")]
-        self.threadB = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[1].ID))
+        self.threadB = threading.Thread(daemon = True, target = self.updateProg)
         self.threadB.start()
         
         #* Building Student Database
@@ -378,19 +371,19 @@ class Application(tk.Tk):
 
         self.progBars[1].increment()
         self.mainProgressBar["value"] += 1
-        self.operationsRemaining -= 1
         
         
         if not len(self.mgr.DATABASE) or all(student == None for student in self.mgr.DATABASE.values()):
             raise EmptyDatabase("Build Failed. Check all Files for Validity")
             
         print("Database Sucessfully Built...")
-       
+        self.stop.set()
            
     def extract(self) -> None:
         """ Extracts code from submissions to later write to PII-linked files """
+        self.stop.clear()
         self.progBars += [ProgBar(self.numSubmissions, "Extracting")]
-        self.threadE = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[2].ID))
+        self.threadE = threading.Thread(daemon = True, target = self.updateProg)
         self.threadE.start()
         
         chdir(self.mgr.ARCHIVE) #> Open archive directory
@@ -410,19 +403,21 @@ class Application(tk.Tk):
                 except FileNotFoundError: WARNING("E1", f"Missing {file} for:\n\t{self[int(subID)]}")            
                 except KeyError: WARNING("E2", f"Missing Key for:\n\t{self[int(subID)]}")
                 
-                self.progBars[2].increment()
-                self.mainProgressBar["value"] += 1
-                self.operationsRemaining -= 1
-                
+            self.progBars[2].increment()
+            self.mainProgressBar["value"] += 1
+        
             chdir(self.mgr.ARCHIVE) #> Restore Archive Directory
+            
+        self.stop.set()
         chdir(self.mgr.ROOTDIR) #> Restore Root Directory
         print("Code Extracted & Linked...")
         
         
     def generate(self) -> None:
         """ Generates folder of single files which contain PII-linked code """
+        self.stop.clear()
         self.progBars += [ProgBar(self.numSubmissions, "Generating")]
-        self.threadG = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[3].ID))
+        self.threadG = threading.Thread(daemon = True, target = self.updateProg)
         self.threadG.start()
             
         #* Create & open unique folder using date & time; created in ROOTDIR
@@ -461,8 +456,8 @@ class Application(tk.Tk):
                 
             self.progBars[3].increment()
             self.mainProgressBar["value"] += 1
-            self.operationsRemaining -= 1
             
+        self.stop.set()
         chdir(self.mgr.ROOTDIR) #> Restore root directory
         print("Folder Generation Complete...")
 
@@ -479,20 +474,20 @@ class Application(tk.Tk):
         try: self.setup()
         except EmptyStarterDirectory: ERROR("S1", "Selected Starter Code Directory Contains 0 .h/.cpp Files")
         except Exception as e:        UNKNOWNERROR("S2", e); return
-        #self.threadS.join()
+        self.threadS.join()
         
         try: self.build()    #> Build Student Database
         except EmptyDatabase as e: ERROR("B1", e)
         except Exception as e:     UNKNOWNERROR("B2", e); return
-        #self.threadB.join()
+        self.threadB.join()
         
         try: self.extract()  #> Extract Student Code
         except Exception as e: UNKNOWNERROR("E", e); return
-        #self.threadE.join()
+        self.threadE.join()
         
         try: self.generate() #> Generate PII-Linked Folder of Student Code
         except Exception as e: UNKNOWNERROR("G", e); return
-        #self.threadE.join()
+        self.threadG.join()
         
         print(f"\nSummary:\n\t{len(listdir(self.mgr.ARCHIVE))} PII-Linked Files Generated")
 
