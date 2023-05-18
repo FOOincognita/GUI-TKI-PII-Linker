@@ -335,7 +335,7 @@ class Application(tk.Tk):
         #* Init main progress bar
         self.numSubmissions = len(listdir(self.mgr.ARCHIVE))
         self.mainProgressBar["value"] = 0
-        self.mainProgressBar["maximum"] = self.operationsRemaining * 2 + 2
+        self.mainProgressBar["maximum"] = self.numSubmissions * 2 + 2
         
         self.progBars += [ProgBar(1, "Initialzing")]
         self.threadS = threading.Thread(daemon = True, target = self.updateProg)
