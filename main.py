@@ -34,6 +34,7 @@ class ProgBar:
     instance = 0
     def __init__(self, total, title=''):
         self.ID = ProgBar.instance
+        ProgBar.instance += 1
         self.total = total
         self.progress = 0
         self.start_time = time.time()
@@ -199,10 +200,11 @@ class Application(tk.Tk):
         
         #* PII-Linker 
         self.mgr = PIILinker()
-        self.progBar: ProgBar = None
-        self.progBarComplete = False
+        
+        #* ProgBar
         self.operationsRemaining = 0
-        self.completedOperations = 0
+        self.progBars: list[ProgBar] = []
+        
 
     def create_widgets(self):
         
@@ -246,8 +248,8 @@ class Application(tk.Tk):
             fg                  = 'white', 
             highlightbackground = 'grey18',
             highlightthickness  = 1,
-            relief              = 'flat', 
-            state               = 'disabled'
+            relief              = 'flat',
+            state               = 'normal'
         )
         self.output.pack(
             padx = 10, 
@@ -265,7 +267,8 @@ class Application(tk.Tk):
             highlightbackground = 'grey18',
             highlightthickness  = 1,
             relief              = 'flat', 
-            height              = 1
+            height              = 1,
+            state               = 'normal'
         )
         self.active_progress_area.pack(
             padx = 10, 
@@ -310,23 +313,16 @@ class Application(tk.Tk):
             
 
     #> -------------------- Progress Bar -------------------- <#            
-    def startProg(self):
-        thread = threading.Thread(target = self.updateProg)
-        thread.daemon = True
-        thread.start()
-
-    def updateProg(self):
+    def updateProg(self, PGID: int):
         while True:
             self.active_progress_area.delete('1.0', tk.END)
         
-            if self.progBar.progress >= self.progBar.total or self.progBar.ID != ProgBar.instance:
-                if self.progBar.progress < self.progBar.total:
-                    self.progBar.progress = self.progBar.total
-                    
-                self.output.insert(tk.END, str(self.progBar) + '\n')
+            if self.progBars[PGID].progress >= self.progBars[PGID].total or PGID != ProgBar.instance:
+                self.progBars[PGID].progress = self.progBars[PGID].total
+                self.output.insert(tk.END, str(self.progBars[PGID]) + '\n')
                 return
             
-            self.active_progress_area.insert(tk.END, str(self.progBar))
+            self.active_progress_area.insert(tk.END, str(self.progBars[PGID]))
         
 
 
@@ -346,8 +342,9 @@ class Application(tk.Tk):
         self.mainProgressBar["value"] = 0
         self.mainProgressBar["maximum"] = self.operationsRemaining
         
-        self.progBar = ProgBar(len(self.mgr.CHECK), "Initialzing")
-        self.startProg()
+        self.progBars += [ProgBar(1, "Initialzing")]
+        self.threadS = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[0].ID))
+        self.threadS.start()
         
         chdir(self.mgr.STARTER) #> Change dir to starter-code folder
         NL2 = "\n\n"
@@ -355,30 +352,34 @@ class Application(tk.Tk):
         for i, sFile in enumerate(self.mgr.CHECK, 0):
             with open(sFile, 'r') as rFile:
                 self.mgr.STARTER += f"{(NL2 if i else '')}/* ----- {sFile} | STARTER CODE ----- */\n\n{rFile.read()}"
-            self.progBar.increment()
                             
         chdir(self.mgr.ROOTDIR) #> Restoring root directory
+        
+        self.progBars[0].increment()
         self.mainProgressBar["value"] += 1
         self.operationsRemaining -= 1
+        
          
     
     def build(self) -> None:
         """ Builds student database using exported submission CSV """
         
+        self.progBars += [ProgBar(1, "Building")]
+        self.threadB = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[1].ID))
+        self.threadB.start()
+        
         #* Building Student Database
         with open(self.mgr.SID_CSV, 'r') as csvFile:
-            self.progBar = ProgBar(1, "Building")
-            self.startProg()
-
             csvFile.readline()
             self.mgr.DATABASE = {
                 int(sid) : Student(first, last, sid, uin, email, section) for sid, first, last, uin, email, section
                     in [[line.split(",")[8]] + line.split(",")[:5] for line in csvFile.read().split('\n') if "Graded" in line]
             } 
 
-        self.progBar.increment()
+        self.progBars[1].increment()
         self.mainProgressBar["value"] += 1
         self.operationsRemaining -= 1
+        
         
         if not len(self.mgr.DATABASE) or all(student == None for student in self.mgr.DATABASE.values()):
             raise EmptyDatabase("Build Failed. Check all Files for Validity")
@@ -388,8 +389,10 @@ class Application(tk.Tk):
            
     def extract(self) -> None:
         """ Extracts code from submissions to later write to PII-linked files """
-        self.progBar = ProgBar(self.numSubmissions, "Extracting")
-        self.startProg()
+        self.progBars += [ProgBar(self.numSubmissions, "Extracting")]
+        self.threadE = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[2].ID))
+        self.threadE.start()
+        
         chdir(self.mgr.ARCHIVE) #> Open archive directory
             
         #* Iterate over each submission
@@ -407,20 +410,20 @@ class Application(tk.Tk):
                 except FileNotFoundError: WARNING("E1", f"Missing {file} for:\n\t{self[int(subID)]}")            
                 except KeyError: WARNING("E2", f"Missing Key for:\n\t{self[int(subID)]}")
                 
-                self.progBar.increment()
+                self.progBars[2].increment()
                 self.mainProgressBar["value"] += 1
                 self.operationsRemaining -= 1
                 
             chdir(self.mgr.ARCHIVE) #> Restore Archive Directory
         chdir(self.mgr.ROOTDIR) #> Restore Root Directory
-        
         print("Code Extracted & Linked...")
         
         
     def generate(self) -> None:
         """ Generates folder of single files which contain PII-linked code """
-        self.progBar = ProgBar(self.numSubmissions, "Generating")
-        self.startProg()
+        self.progBars += [ProgBar(self.numSubmissions, "Generating")]
+        self.threadG = threading.Thread(daemon = True, target = self.updateProg, args=(self.progBars[3].ID))
+        self.threadG.start()
             
         #* Create & open unique folder using date & time; created in ROOTDIR
         while True:
@@ -456,7 +459,7 @@ class Application(tk.Tk):
                         
             chdir(EXPDIR) #> Restore Export Directory
                 
-            self.progBar.increment()
+            self.progBars[3].increment()
             self.mainProgressBar["value"] += 1
             self.operationsRemaining -= 1
             
@@ -468,9 +471,7 @@ class Application(tk.Tk):
     #> -------------------- Run PII Linker -------------------- <#
     def run_program(self):
         """ Starts main program """
-        
-        self.output.configure(state = 'normal') #> Unlock Main text area
-        
+        print("Running")
         if not all([self.csvPath.get(), self.submissionPath.get(), self.starterCodePath.get()]):
             print('[ERROR] Please select all files & directories before running\n')
             return
@@ -478,20 +479,22 @@ class Application(tk.Tk):
         try: self.setup()
         except EmptyStarterDirectory: ERROR("S1", "Selected Starter Code Directory Contains 0 .h/.cpp Files")
         except Exception as e:        UNKNOWNERROR("S2", e); return
+        #self.threadS.join()
         
         try: self.build()    #> Build Student Database
         except EmptyDatabase as e: ERROR("B1", e)
         except Exception as e:     UNKNOWNERROR("B2", e); return
+        #self.threadB.join()
         
         try: self.extract()  #> Extract Student Code
         except Exception as e: UNKNOWNERROR("E", e); return
+        #self.threadE.join()
         
         try: self.generate() #> Generate PII-Linked Folder of Student Code
         except Exception as e: UNKNOWNERROR("G", e); return
-    
-        print(f"\nSummary:\n\t{len(listdir(self.mgr.ARCHIVE))} PII-Linked Files Generated")
+        #self.threadE.join()
         
-        self.output.configure(state = 'disabled')
+        print(f"\nSummary:\n\t{len(listdir(self.mgr.ARCHIVE))} PII-Linked Files Generated")
 
 if __name__ == "__main__":
     app = Application()
