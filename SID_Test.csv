@@ -1,0 +1,7 @@
+First Name,Last Name,SID,Email,Sections,Total Score,Max Points,Status,Submission ID,Submission Time,Lateness (H:M:S),View Count,Submission Count,1: Autograder (100.0 pts)
+Test,Student,685667899,Tester@tamu.edu,csce-12x-709,100,100,Graded,132000149,10:44:22,0:00:00,0,50,15.8
+Test Two,Student2,686375895,Tester2@tamu.edu,csce-12x-709,100,100,Graded,132000152,10:44:22,0:00:00,0,50,15.8
+TestThree,Student3,686375998,Tester3@tamu.edu,csce-12x-709,100,100,Graded,132000448,10:44:22,0:00:00,0,50,15.8
+Test Four,Student4,686378265,Tester4@tamu.edu,csce-12x-709,100,100,Graded,132060444,10:44:22,0:00:00,0,50,15.8
+TestFive,Student5,684488891,Tester5@tamu.edu,csce-12x-709,100,100,Graded,132111152,10:44:22,0:00:00,0,50,15.8
+TestMissing,MissingStudent,432006509,missingStudent@tamu.edu,csce-12x-709,100,,Missing,,,,,,
