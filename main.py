@@ -3,14 +3,43 @@
     @Author: Archer Simmons, UGTA
     @Contact: Archer.Simmons@tamu.edu 
     
-        Personal:
-            832 <dash> 433 <dash> 2245
-            Archer1799@gmail.com
+    Mobile: 832 <dash> 433 <dash> 2245
     
-    * Compare 50:
+    # Compare 50:
         > RUN:  compare50 */*.cpp -d 0_STARTER.cpp -p structure text exact misspellings -n 750
         > DOC:  https://cs50.readthedocs.io/projects/compare50/en/latest/index.html
         > REPO: https://github.com/cs50/compare50
+        
+    
+    # Generate Windows exe:
+        * Convert main.py to .exe:
+            > pyinstaller --onefile --windowed --icon=C:\path\to\icon.ico code.py
+        
+        * Create Self-Sign Certificate:
+            > $cert = New-SelfSignedCertificate -DNSName "Texas A&M University Departement of Computer Science and Engineering" -CertStoreLocation Cert:\CurrentUser\My -Type CodeSigningCert -Subject “Code Signing”
+
+        * Export SSC:
+            1. Press Win+R, type certmgr.msc, and press Enter to open the Certificate Manager.
+            2. Navigate to Personal -> Certificates.
+            3. Move Code Signing cert to Trusted Root CA folder
+            4. Right-click on your certificate, select All Tasks, then Export.
+            5. In the wizard, select Yes, export the private key.
+            6. Select Personal Information Exchange - PKCS #12 (.PFX), & check:
+                i. Include all certificates in the certification path if possible  
+                ii. Export all extended properties.
+            7. Set a password for the .pfx file.
+            8. Select SHA256 Encryption
+            9. Choose a location to save the .pfx file, then click Finish.
+        
+        * Install Windiows SDK
+        
+        * cd Into SDK Directory
+                
+        * Link SSC to exe:
+            > Install Windiows SDK; Open PowerShell as Administrator
+            > cd C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\
+            > .\signtool sign /f C:\path\to\Cert.pfx /fd SHA256 /p <certificate-password> C:\path\to\program.exe
+        
 """
 
 from os import listdir, chdir, getcwd, path, mkdir
@@ -424,3 +453,5 @@ class Application(tk.Tk):
 if __name__ == "__main__":
     app = Application()
     app.mainloop()
+
+
