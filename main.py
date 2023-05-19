@@ -82,14 +82,6 @@ class ProgBar:
 
 ## ____________________ PII-Linker ____________________ ##
 
-ERROR        = lambda x, y: sys.stderr.write(f"[ERROR {x}]: {y}")
-WARNING      = lambda x, y: sys.stderr.write(f"[WARNING {x}]: {y}")
-UNKNOWNERROR = lambda x, y: sys.stderr.write(f"[ERROR {x}] UNHANDLED EXCEPTION:\n\t{y}")
-
-class EmptyDatabase(Exception): pass
-class EmptyStarterDirectory(Exception): pass
-
-
 #* Student Dataclass
 class Student:
         
@@ -146,7 +138,7 @@ class Application(tk.Tk):
         tk.Tk.__init__(self, *args, **kwargs)
 
         #* Global Settings
-        self.geometry('640x650')
+        self.geometry('880x630')
         self.title("PII-Linker")
         self.configure(bg = 'grey15')
         self.style = ttk.Style()
@@ -196,6 +188,8 @@ class Application(tk.Tk):
         self.outputPath      = tk.StringVar()
         self.outputPath.set(getcwd())
         
+        self.create_widgets()
+        
         #* PII-Linker 
         self.mgr = PIILinker()
         self.numSubmissions = 0
@@ -204,16 +198,14 @@ class Application(tk.Tk):
         self.procQueue = queue.Queue()
         self.running = False
         self.FUNCS = {
-            "setup":    ["Initializing...", self.setup],
-            "build":    ["Building...",     self.build],
-            "extract":  ["Extracting...",   self.extract],
-            "generate": ["Generating...",   self.generate]
+            "setup":    ["Initializing... ", self.setup   ],
+            "build":    ["Building... ",     self.build   ],
+            "extract":  ["Extracting... ",   self.extract ],
+            "generate": ["Generating... ",   self.generate]
         }
         
         #* STDIO Redirection
         sys.stderr = TextRedirector(self.output)
-        
-        self.create_widgets()
 
 
     def create_widgets(self):
@@ -308,6 +300,7 @@ class Application(tk.Tk):
             self.outputPath.set(f"  {directory}")
             self.mgr.OUTPUT = directory
             
+            
     #> -------------------- Progress Bar Threads -------------------- <#            
     def _call__(self, func: str):
         """ Handles Step-Selection & Threads"""
@@ -346,7 +339,10 @@ class Application(tk.Tk):
                 if file.endswith(".cpp") or file.endswith(".h")
         ]
         
-        if not len(self.mgr.CHECK): raise EmptyStarterDirectory
+        if not len(self.mgr.CHECK): 
+            print("[ERROR] Starter-Code Directory Contains 0 .h/.cpp File(s)", file=sys.stderr)
+            self.running = False
+            return
         
         self.numSubmissions = len(listdir(self.mgr.ARCHIVE))
         self.mainProgressBar["value"] = 0
@@ -378,9 +374,11 @@ class Application(tk.Tk):
                                 if "Graded" in line
                     ]
             } 
-        #!!!! [TODO]: ADD EXCEPTION HANDLING
+            
         if not len(self.mgr.DATABASE) or all(student == None for student in self.mgr.DATABASE.values()): 
-            raise EmptyDatabase("Build Failed. Check all Files for Validity")
+            print("[ERROR] Database Build Failed\n\tCheck all Files for Validity", file=sys.stderr)
+            self.running = False
+            return
         
         self.mainProgressBar["value"] += 1
         PB.increment()
@@ -395,15 +393,15 @@ class Application(tk.Tk):
    
         for folderName in listdir(): 
             chdir(path.join(self.mgr.ARCHIVE, folderName)) 
-            for file in self.mgr.CHECK:
-                try:
-                    with open(file, mode='r', encoding='utf-8', errors='ignore') as fileCode:
-                        (stu := self.mgr[int(subID := folderName.strip().split('_')[-1])]).CODE \
-                            += f"/* ----- {file} | {repr(stu)} ----- */\n\n{fileCode.read()}"
-                            
-                #!!!! [TODO]: ADD EXCEPTION HANDLING
-                except FileNotFoundError: WARNING("E1", f"Missing {file} for:\n\t{self[int(subID)]}")            
-                except KeyError: WARNING("E2", f"Missing Key for:\n\t{self[int(subID)]}")
+            FILES_ = listdir()
+            for file in self.mgr.CHECK:       
+                if file not in FILES_: 
+                    print(f"[WARNING] Missing {file} for:\n\t{(self.mgr[int(subID)])}", file=sys.stderr) 
+                    continue
+                
+                with open(file, mode='r', encoding='utf-8', errors='ignore') as fileCode:
+                    (stu := self.mgr[int(subID := folderName.strip().split('_')[-1])]).CODE \
+                        += f"/* ----- {file} | {repr(stu)} ----- */\n\n{fileCode.read()}"
                 
             self.mainProgressBar["value"] += 1
             PB.increment()
@@ -421,13 +419,15 @@ class Application(tk.Tk):
         mkdir(EXPDIR := path.join(self.mgr.OUTPUT, f"PIILinked_{fileID}")) 
         chdir(EXPDIR) 
 
-        with open("0_STARTER.cpp", 'w') as wFile: wFile.write(self.mgr.STARTER)
+        with open(file="0_STARTER.cpp", mode='w', encoding='utf-8', errors="ignore") as wFile: 
+            wFile.write(self.mgr.STARTER)
                     
         for subID, student in self.mgr.DATABASE.items():
-            mkdir(STUDIR := path.join(EXPDIR, '_'.join(student.NAME.split())))     
+            if not path.exists(STUDIR := path.join(EXPDIR, '_'.join(student.NAME.split()))):
+                mkdir(STUDIR)     
             chdir(STUDIR) 
     
-            with open('_'.join(student.NAME.split()) + '_' + str(subID) + ".cpp", 'w') as wFile: 
+            with open(file=f"{'_'.join(student.NAME.split())}_{subID}.cpp", mode='w', encoding='utf-8', errors="ignore") as wFile: 
                 wFile.write(student.CODE)
                         
             chdir(EXPDIR) 
@@ -444,22 +444,21 @@ class Application(tk.Tk):
     def start_runner(self):
         """ Start Runner Loop. """
         self._runNext__()
-        if self.running: 
-            self.after(50, self.start_runner)    
+        if self.running: self.after(50, self.start_runner)    
+        else: self.active_progress_area.delete('1.0', tk.END)
             
     
     def run_program(self):
         """ Starts Main Program """
         if not all([self.csvPath.get(), self.submissionPath.get(), self.starterCodePath.get()]):
-            self.output.insert(tk.END, '[ERROR] Please select all files & directories before running\n')
+            self.output.insert(tk.END, '[ERROR] Missing Files/Directories Selections \n')
             return    
         
         if not self.running:
             self.running = True
             self._call__("setup")
             self.start_runner()
-            
-        self.active_progress_area.delete('1.0', tk.END)
+
 
 
 if __name__ == "__main__":
