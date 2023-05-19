@@ -30,14 +30,10 @@
             7. Set a password for the .pfx file.
             8. Select SHA256 Encryption
             9. Choose a location to save the .pfx file, then click Finish.
-        
-        * Install Windiows SDK
-        
-        * cd Into SDK Directory
                 
         * Link SSC to exe:
             > Install Windiows SDK; Open PowerShell as Administrator
-            > cd C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\
+            > cd "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x64\"
             > .\signtool sign /f C:\path\to\Cert.pfx /fd SHA256 /p <certificate-password> C:\path\to\program.exe
         
 """
@@ -49,6 +45,7 @@ import tkinter as tk
 import threading
 import queue
 import time
+import sys
 
 
 ## ____________________ Progress-Bar ____________________ ##
@@ -84,9 +81,10 @@ class ProgBar:
 
 
 ## ____________________ PII-Linker ____________________ ##
-ERROR        = lambda x, y: print(f"[ERROR {x}]: {y}")
-WARNING      = lambda x, y: print(f"[WARNING {x}]: {y}")
-UNKNOWNERROR = lambda x, y: print(f"[ERROR {x}] UNHANDLED EXCEPTION:\n\t{y}")
+
+ERROR        = lambda x, y: sys.stderr.write(f"[ERROR {x}]: {y}")
+WARNING      = lambda x, y: sys.stderr.write(f"[WARNING {x}]: {y}")
+UNKNOWNERROR = lambda x, y: sys.stderr.write(f"[ERROR {x}] UNHANDLED EXCEPTION:\n\t{y}")
 
 class EmptyDatabase(Exception): pass
 class EmptyStarterDirectory(Exception): pass
@@ -129,6 +127,19 @@ class PIILinker:
 
 
 ## ____________________ GUI Classes ____________________ ##
+
+class TextRedirector(object):
+    """ Redirects STDIO to Text Box """
+    def __init__(self, widget):
+        self.widget = widget
+
+    def write(self, str):
+        """ Writes STDIO to window """
+        self.widget.insert(tk.END, str)
+        self.widget.see(tk.END)
+    
+    def flush(self): pass
+
 class Application(tk.Tk):
     
     def __init__(self, *args, **kwargs):
@@ -198,6 +209,9 @@ class Application(tk.Tk):
             "extract":  ["Extracting...",   self.extract],
             "generate": ["Generating...",   self.generate]
         }
+        
+        #* STDIO Redirection
+        sys.stderr = TextRedirector(self.output)
         
         self.create_widgets()
 
@@ -319,9 +333,7 @@ class Application(tk.Tk):
 
     def _runNext__(self):
         """ Loops to Consume & Execute Queue Requests """
-        print("Runner called")
         if not self.procQueue.empty():
-            print("procQ isn't empty")
             next_op = self.procQueue.get()
             next_op() 
 
@@ -343,7 +355,7 @@ class Application(tk.Tk):
         NL2 = "\n\n"
         
         for i, sFile in enumerate(self.mgr.CHECK, 0):
-            with open(sFile, 'r') as rFile:
+            with open(sFile, mode='r', encoding='utf-8', errors='ignore') as rFile:
                 self.mgr.STARTER += f"{(NL2 if i else '')}/* ----- {sFile} | STARTER CODE ----- */\n\n{rFile.read()}"    
                 
         chdir(self.mgr.ROOTDIR)
@@ -356,7 +368,7 @@ class Application(tk.Tk):
          
     def build(self, PB: ProgBar) -> None:
         """ Builds student database using exported submission CSV """
-        with open(self.mgr.SID_CSV, 'r') as csvFile:
+        with open(self.mgr.SID_CSV, mode='r', encoding='utf-8', errors='ignore') as csvFile:
             csvFile.readline()
             self.mgr.DATABASE = {
                 int(sid) : Student(first, last, sid, uin, email, section) 
@@ -385,7 +397,7 @@ class Application(tk.Tk):
             chdir(path.join(self.mgr.ARCHIVE, folderName)) 
             for file in self.mgr.CHECK:
                 try:
-                    with open(file, 'r') as fileCode:
+                    with open(file, mode='r', encoding='utf-8', errors='ignore') as fileCode:
                         (stu := self.mgr[int(subID := folderName.strip().split('_')[-1])]).CODE \
                             += f"/* ----- {file} | {repr(stu)} ----- */\n\n{fileCode.read()}"
                             
