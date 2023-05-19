@@ -349,7 +349,7 @@ class Application(tk.Tk):
 
            
     def extract(self, PB: ProgBar) -> None:
-        """ Extracts code from submissions to later write to PII-linked files """
+        """ Extracts Submissions for PII-linking """
         chdir(self.mgr.ARCHIVE) 
    
         for folderName in listdir(): 
@@ -375,7 +375,7 @@ class Application(tk.Tk):
         
     
     def generate(self, PB: ProgBar) -> None:
-        """ Generates folder of single files which contain PII-linked code """
+        """ Generates Folder PII-linked Code """
         fileID = f"{(T := dt.now()).month}-{T.year}_{T.second}"
         mkdir(EXPDIR := path.join(self.mgr.OUTPUT, f"PIILinked_{fileID}")) 
         chdir(EXPDIR) 
@@ -401,7 +401,7 @@ class Application(tk.Tk):
 
     #> -------------------- Run PII Linker -------------------- <#
     def start_runner(self):
-        """ Start runner loop. """
+        """ Start Runner Loop. """
         self._runNext__()
         if self.running: 
             self.after(50, self.start_runner)    
