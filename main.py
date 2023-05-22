@@ -440,7 +440,7 @@ class Application(tk.Tk):
         self.running = False
         
 
-    #> -------------------- Run PII Linker -------------------- <#
+    #> -------------------- Run -------------------- <#
     def start_runner(self):
         """ Start Runner Loop. """
         self._runNext__()
@@ -464,5 +464,3 @@ class Application(tk.Tk):
 if __name__ == "__main__":
     app = Application()
     app.mainloop()
-
-
